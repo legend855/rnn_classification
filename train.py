@@ -10,7 +10,7 @@ import time
 import datetime
 
 from dataset import ClaimsDataset, variable
-from rnn_model import RNN
+from model import RNN
 from utils import cuda
 from collections import defaultdict
 from sklearn import metrics

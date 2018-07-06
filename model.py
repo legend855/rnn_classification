@@ -6,7 +6,7 @@ from torch.autograd import Variable
 
 class RNN(nn.Module):
     def __init__(self, vocab_size, hidden_size, batch_size, embedding_dim):
-        super(Model, self).__init__()
+        super(RNN, self).__init__()
 
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
