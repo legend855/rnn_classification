@@ -10,7 +10,7 @@ import time
 import datetime
 
 from dataset import ClaimsDataset, variable
-from model import Model
+from rnn_model import RNN
 from utils import cuda
 from collections import defaultdict
 from sklearn import metrics
@@ -42,7 +42,7 @@ def main():
 
     vocab_size = ds.vocab.__len__()
 
-    model = Model(vocab_size, hidden_size, batch_size, embedding_size)
+    model = RNN(vocab_size, hidden_size, batch_size, embedding_size)
     model = cuda(model)
     #model.train()
 
