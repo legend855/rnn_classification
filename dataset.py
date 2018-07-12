@@ -88,12 +88,12 @@ class ClaimsDataset(torch.utils.data.Dataset):
     @staticmethod
     def tokenize_data(df_):
         # lower case then tokenize
-        df_['title'] = df_.apply(lambda row: word_tokenize( row['title'].lower())
-                                                if type( row['title'] ) is str
+        df_['title'] = df_.apply(lambda row: word_tokenize(row['title'].lower())
+                                                if type(row['title'] ) is str
                                                 else word_tokenize( row['title']), axis=1)
 
-        df_['complain'] = df_.apply(lambda row: word_tokenize( row['complain'].lower())
-                                                if type( row['complain']) is str
+        df_['complain'] = df_.apply(lambda row: word_tokenize(row['complain'].lower())
+                                                if type(row['complain']) is str
                                                 else word_tokenize( row['complain']), axis=1)
 
         # stop words
@@ -106,8 +106,8 @@ class ClaimsDataset(torch.utils.data.Dataset):
         if vocab is not None:
             self.vocab = vocab
         else:
-            self.vocab = Vocabulary( [ ClaimsDataset.PAD, ClaimsDataset.INIT, 
-                                       ClaimsDataset.UNK,  ClaimsDataset.EOS])
+            self.vocab = Vocabulary([ClaimsDataset.PAD, ClaimsDataset.INIT,
+                                     ClaimsDataset.UNK,  ClaimsDataset.EOS])
         
         self.vocab.add_documents(self.sc['complain'])
         self.vocab.add_documents(self.sc['title'])
@@ -137,15 +137,14 @@ class ClaimsDataset(torch.utils.data.Dataset):
         if c_pads > 0:
             _comp = _comp + [ClaimsDataset.PAD] * c_pads
         
-        # convert both to indices 
+        # convert to indices
         _title = [self.vocab.token2id[t] if t in self.vocab.token2id
-                                         else self.vocab.token2id[ClaimsDataset.UNK] for t in _title ]
+                                         else self.vocab.token2id[ClaimsDataset.UNK] for t in _title]
         _comp = [self.vocab.token2id[t] if t in self.vocab.token2id 
-                                         else self.vocab.token2id[ClaimsDataset.UNK] for t in _comp ]
+                                         else self.vocab.token2id[ClaimsDataset.UNK] for t in _comp]
 
-        # turn to torch tensors so dataloader can handle here 
+        # turn to torch tensors for data loader
         _title, _comp = torch.tensor(_title), torch.tensor(_comp)
-        
         return [_comp, _lab]
 
     def __len__(self):

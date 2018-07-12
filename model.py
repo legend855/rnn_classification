@@ -14,10 +14,10 @@ class RNN(nn.Module):
         self.pad_id = pad_id
         
         # layers
-        self.emb = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=0)
+        self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
         #self.rnn = nn.RNN(self.embedding_dim, self.hidden_size)
         self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.2)
         self.fc = nn.Linear(self.hidden_size, 1)
 
     def forward(self, inputs):
@@ -33,7 +33,7 @@ class RNN(nn.Module):
 
         # pack inputs
         packed_in = nn.utils.rnn.pack_padded_sequence(self.emb(inputs), lengths.tolist(), batch_first=True)
-        packed_in = self.dropout(packed_in)
+        #packed_in = self.dropout(packed_in)
         outputs, (hidden, cell) = self.rnn(packed_in)   # forward
 
         output = self.fc(hidden)

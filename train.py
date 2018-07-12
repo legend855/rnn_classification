@@ -21,11 +21,11 @@ def main():
     filename = 'data/data_sample.csv'
 
     embedding_size = 128
-    hidden_size = 512
+    hidden_size = 256
     batch_size = 64
     nb_epochs = 256
-    lr = 1e-4
-    max_norm = 5
+    lr = 1e-3
+    max_norm = 3
 
     # Dataset
     ds = ClaimsDataset(filename)
@@ -38,12 +38,12 @@ def main():
     train_len = ds.__len__() - (test_len + val_len)
     print("\nTrain size: {}\tValidate size: {}\tTest size: {}".format(train_len, val_len, test_len))
 
-    # randomly split dataset into specified tr, te, & val sizes
+    # randomly split dataset into tr, te, & val sizes
     d_tr, d_val, d_test = torch.utils.data.dataset.random_split(ds, [train_len, val_len, test_len])
 
     # data loaders
-    dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)
-    dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)
+    dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)#, shuffle=True)
+    dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)#, shuffle=True)
     dl_test = torch.utils.data.DataLoader(d_test, batch_size=batch_size)
 
     model = RNN(vocab_size, hidden_size, embedding_size, pad_id)
@@ -51,8 +51,8 @@ def main():
 
     model.zero_grad()
     parameters = list(model.parameters())
-    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=0.6, amsgrad=True) # optimizer
-    criterion = nn.BCEWithLogitsLoss() # loss function
+    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=0.2, amsgrad=True) # optimizer
+    criterion = nn.MultiLabelSoftMarginLoss() # = nn.BCEWithLogits() # loss function
 
     losses = defaultdict(list)
 
