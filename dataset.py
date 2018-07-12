@@ -2,19 +2,14 @@
 # Patrick Kyoyetera
 # copyright 2018
 
-from nltk import word_tokenize, sent_tokenize 
+from nltk import word_tokenize
 from nltk.corpus import stopwords 
 
 from bs4 import BeautifulSoup
 from collections import Counter 
-from torch.autograd import Variable 
-from utils import cuda, variable 
 
 import pandas as pd 
-import numpy as np 
-
 import torch.utils.data
-import contractions 
 
 
 class Vocabulary(object):
@@ -22,9 +17,7 @@ class Vocabulary(object):
         super(Vocabulary, self).__init__()
 
         self.num_tokens = 0
-        self.token2id = {}
-        self.id2token = {}
-        
+        self.token2id, self.id2token = {}, {}
         self.token_counts = Counter()
 
         self.special_tokens = []
@@ -59,16 +52,16 @@ class ClaimsDataset(torch.utils.data.Dataset):
     PAD = '<pad>'
     UNK = '<unk>'
     EOS = '<eos>'
+    headers = ['title', 'complain']
 
     def __init__(self, csvfile):
         self.filename = csvfile
-
-        self.max_len_c = 0
-        self.max_len_t = 0
+        self.max_len_c, self.max_len_t = 0, 0
 
         df = self.load_data()
         self.sc = self.tokenize_data(df)
         self.make_vocab()
+        self.nb_sentences = len(self.sc)
 
         super().__init__()
 
@@ -87,20 +80,18 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
     @staticmethod
     def tokenize_data(df_):
-        # lower case then tokenize
-        df_['title'] = df_.apply(lambda row: word_tokenize(row['title'].lower())
-                                                if type(row['title'] ) is str
-                                                else word_tokenize( row['title']), axis=1)
-
-        df_['complain'] = df_.apply(lambda row: word_tokenize(row['complain'].lower())
-                                                if type(row['complain']) is str
-                                                else word_tokenize( row['complain']), axis=1)
-
         # stop words
         stop_words = set(stopwords.words('english'))
-        df_['complain'] = df_['complain'].apply(lambda line: [w for w in line if w not in stop_words])
+
+        # lower case then tokenize
+        for header in ClaimsDataset.headers:
+            df_[header] = df_.apply(lambda row: word_tokenize(row[header].lower())
+                                                if type(row[header]) is str
+                                                else word_tokenize(row[header]), axis=1)
+            df_[header] = df_[header].apply(lambda line: [w for w in line if w not in stop_words])
 
         return df_
+
 
     def make_vocab(self, vocab=None):
         if vocab is not None:
@@ -108,23 +99,19 @@ class ClaimsDataset(torch.utils.data.Dataset):
         else:
             self.vocab = Vocabulary([ClaimsDataset.PAD, ClaimsDataset.INIT,
                                      ClaimsDataset.UNK,  ClaimsDataset.EOS])
-        
-        self.vocab.add_documents(self.sc['complain'])
-        self.vocab.add_documents(self.sc['title'])
-        
-        # Cut to max length here and append eos token
-        self.sc['title'] = self.sc['title'].apply(lambda line: line[:self.max_len_t - 1])
-        self.sc['complain'] = self.sc['complain'].apply(lambda line: line[:self.max_len_c - 1])
 
-        self.sc['title'] = self.sc['title'].apply(lambda line: line + [ClaimsDataset.EOS, ])
-        self.sc['complain'] = self.sc['complain'].apply(lambda line: line + [ClaimsDataset.EOS, ])
+        for header in ClaimsDataset.headers:
+            self.vocab.add_documents(self.sc[header])
+            self.sc[header] = self.sc[header].apply(lambda line: line[:self.max_len_t - 1]
+                                                                if header == 'title'
+                                                                else line[:self.max_len_c - 1])
+            self.sc[header] = self.sc[header].apply(lambda line: line + [ClaimsDataset.EOS, ])
 
-        self.nb_sentences = len(self.sc)
 
     def __getitem__(self, idx):
         line = self.sc.iloc[idx.item()]
-        _title, _comp, _lab = line['title'], line['complain'], line['is complaint valid']
 
+        _title, _comp, _lab = line['title'], line['complain'], line['is complaint valid']
         _lab = self.label_bin(_lab)
 
         # pad title
@@ -151,7 +138,8 @@ class ClaimsDataset(torch.utils.data.Dataset):
         return self.nb_sentences
 
 
-    def label_bin(self, s):
+    @staticmethod
+    def label_bin(s):
         if s == 'Y':
             return 1
         else:
@@ -160,4 +148,4 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
 if __name__ == '__main__':
     d = ClaimsDataset('data/data_sample.csv')
-    print(d.__getitem__(2))
+    print(d.__getitem__(5)[0])

@@ -21,9 +21,9 @@ def main():
     filename = 'data/data_sample.csv'
 
     embedding_size = 128
-    hidden_size = 256
+    hidden_size = 128
     batch_size = 64
-    nb_epochs = 256
+    nb_epochs = 25
     lr = 1e-3
     max_norm = 3
 
@@ -96,7 +96,6 @@ def main():
     # predict
     for i, inputs in enumerate(dl_test):
         claim, label = inputs
-        claim = variable(claim)
         out = model(claim)
         y_pred = normalize_out(out)
 
@@ -106,9 +105,7 @@ def main():
 
 # my very own binary sigmoid lol
 def normalize_out(output):
-    #y = torch.squeeze(output)
     y_pred = [0 if val < 0.5 else 1 for val in output]
-
     return y_pred
 
 
