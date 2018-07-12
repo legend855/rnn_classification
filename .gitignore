@@ -1,0 +1,11 @@
+
+.idea/*
+.vscode/*
+Notes.txt
+Results/*
+__pycache__/*
+bread.py
+classifier_pr.py
+data/*
+losses.png
+main*

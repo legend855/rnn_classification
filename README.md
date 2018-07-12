@@ -1,10 +1,8 @@
-# Classification with Recurrent Neural networks 
+# Claims lassification with LSTM and GRU 
 
-Implementation of text classification with various rnns. Vanilla RNN, as LSTM and GRU. 
+Implementation of text classification with a vanilla RNN, an LSTM and GRU. 
 
 ### RNN
-See rnn_model.py for vanilla rnn implementation. 
+Implementations in model.py  
 
-
-
-LSTM and GRU implementations are wip.
+GRU implementation is a wip. Stay tuned

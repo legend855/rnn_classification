@@ -1,5 +1,4 @@
 import math
-
 import torch
 import torch.cuda
 import torch.nn as nn
@@ -9,52 +8,55 @@ import numpy as np
 import time
 import datetime
 
-from dataset import ClaimsDataset, variable
+from dataset import ClaimsDataset
 from model import RNN
-from utils import cuda
+from utils import cuda, variable
 from collections import defaultdict
 from sklearn import metrics
 
 
 def main():
-    embedding_size = 128
-    hidden_size = 512
-    batch_size = 64
-    nb_epochs = 250
-    lr = 1e-3
-    max_norm = 5
-
     # load data
     #filename = 'data/train_and_test.csv'
     filename = 'data/data_sample.csv'
-    ds = ClaimsDataset(filename)
 
+    embedding_size = 128
+    hidden_size = 512
+    batch_size = 64
+    nb_epochs = 256
+    lr = 1e-4
+    max_norm = 5
+
+    # Dataset
+    ds = ClaimsDataset(filename)
+    vocab_size = ds.vocab.__len__()
+    pad_id = ds.vocab.token2id.get('<pad>')
     print("\nDataset size: {}".format(ds.__len__()))
 
-    val_len = math.ceil(ds.__len__() * .25)
-    train_len = ds.__len__() - val_len
-    print("\nTrain size: {}\tValidate size: {}".format(train_len, val_len))
+    val_len = math.ceil(ds.__len__() * .15)
+    test_len = batch_size
+    train_len = ds.__len__() - (test_len + val_len)
+    print("\nTrain size: {}\tValidate size: {}\tTest size: {}".format(train_len, val_len, test_len))
 
-    d_tr, d_val = torch.utils.data.dataset.random_split(ds, [train_len, val_len])
+    # randomly split dataset into specified tr, te, & val sizes
+    d_tr, d_val, d_test = torch.utils.data.dataset.random_split(ds, [train_len, val_len, test_len])
 
+    # data loaders
     dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)
     dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)
+    dl_test = torch.utils.data.DataLoader(d_test, batch_size=batch_size)
 
-    vocab_size = ds.vocab.__len__()
-
-    model = RNN(vocab_size, hidden_size, batch_size, embedding_size)
+    model = RNN(vocab_size, hidden_size, embedding_size, pad_id)
     model = cuda(model)
-    #model.train()
 
     model.zero_grad()
     parameters = list(model.parameters())
-    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=0.6, amsgrad=True)
-    criterion = nn.CrossEntropyLoss()
+    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=0.6, amsgrad=True) # optimizer
+    criterion = nn.BCEWithLogitsLoss() # loss function
 
     losses = defaultdict(list)
 
-    phases = ['train', 'val']
-    loaders = [dl_tr, dl_val]
+    phases, loaders = ['train', 'val'], [dl_tr, dl_val]
 
     print("\nBegin training: {}\n".format( datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S') ))
     for epoch in range(nb_epochs):
@@ -69,38 +71,53 @@ def main():
                 optim.zero_grad()
 
                 claim, labels = inputs
-                claim, labels = variable(claim), variable(labels)
 
                 out = model(claim)
-                out = torch.squeeze(out)
 
+                labels = variable(labels.float())
                 loss = criterion(out, labels)
 
-                # back propagate, step: while training
+                # back propagate, for training only
                 if phase == 'train':
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)
+                    torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)  # exploding gradients? say no more!
                     optim.step()
 
-                    #ep_loss.append(loss.item())
-                    #print("Append train")
                 ep_loss.append(loss.item())
 
-            mean_loss = np.mean(ep_loss)
-            losses[phase].append(mean_loss)
+            losses[phase].append(np.mean(ep_loss))  # record only average losses from single epoch
 
-            print("Epoch: {} \t Phase: {} \t Loss: {:.4f}".format(epoch, phase, loss))# get_f1(y_t, y_p)))
+            print("Epoch: {} \t Phase: {} \t Loss: {:.4f}".format(epoch, phase, loss))
 
-    print("\nTime finished: {}".format( datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')))
-    #print(losses)
+    print("\nTime finished: {}\n".format( datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')))
+
     plot_loss(losses['train'], losses['val'])
+
+    # predict
+    for i, inputs in enumerate(dl_test):
+        claim, label = inputs
+        claim = variable(claim)
+        out = model(claim)
+        y_pred = normalize_out(out)
+
+        f1 = get_f1(label, y_pred) # f1 score
+        print("\n\t\tF1 score: {}\n\n".format(f1))
+
+
+# my very own binary sigmoid lol
+def normalize_out(output):
+    #y = torch.squeeze(output)
+    y_pred = [0 if val < 0.5 else 1 for val in output]
+
+    return y_pred
 
 
 def plot_loss(l1, l2):
-    plt.plot(l1, 'r', label='Train', linewidth=.5)
-    plt.plot(l2, 'g', label='Val', linewidth=.5)
+    plt.plot(l1, 'r', label='train', linewidth=.5)
+    plt.plot(l2, 'g', label='val', linewidth=.5)
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
+    plt.legend(loc=0)
     plt.savefig('losses.png')
     plt.show()
 

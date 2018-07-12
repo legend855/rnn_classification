@@ -16,8 +16,13 @@ def variable(obj, volatile=False):
     obj = Variable(obj, volatile=volatile)
     return obj
 
+
 # make cuda object 
 def cuda(obj):
     if torch.cuda.is_available():
         obj = obj.cuda()
     return obj
+
+
+def get_seq_lengths(t, pad_id):
+    return torch.sort(torch.sum(torch.ne(t, pad_id), dim=1), descending=True)
