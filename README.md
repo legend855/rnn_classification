@@ -1,4 +1,4 @@
-# Claims lassification with LSTM and GRU 
+# Claims classification with LSTM and GRU 
 
 Implementation of text classification with a vanilla RNN, an LSTM and GRU. 
 
