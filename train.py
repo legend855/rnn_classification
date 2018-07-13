@@ -23,8 +23,8 @@ def main():
     embedding_size = 128
     hidden_size = 128
     batch_size = 64
-    nb_epochs = 25
-    lr = 1e-3
+    nb_epochs = 256
+    lr = 1e-4
     max_norm = 3
 
     # Dataset
@@ -52,7 +52,7 @@ def main():
     model.zero_grad()
     parameters = list(model.parameters())
     optim = torch.optim.Adam(parameters, lr=lr, weight_decay=0.2, amsgrad=True) # optimizer
-    criterion = nn.MultiLabelSoftMarginLoss() # = nn.BCEWithLogits() # loss function
+    criterion = nn.BCEWithLogitsLoss()  # nn.MultiLabelSoftMarginLoss()  # loss function
 
     losses = defaultdict(list)
 
@@ -80,7 +80,7 @@ def main():
                 # back propagate, for training only
                 if phase == 'train':
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)  # exploding gradients? say no more!
+                    # torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)  # exploding gradients? say no more!
                     optim.step()
 
                 ep_loss.append(loss.item())
@@ -115,8 +115,9 @@ def plot_loss(l1, l2):
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
     plt.legend(loc=0)
-    plt.savefig('losses.png')
     plt.show()
+    plt.savefig('losses.png')
+
 
 
 def get_f1(y_true, y_pred):

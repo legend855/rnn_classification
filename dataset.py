@@ -2,9 +2,8 @@
 # Patrick Kyoyetera
 # copyright 2018
 
-from nltk import word_tokenize
+from nltk import RegexpTokenizer
 from nltk.corpus import stopwords 
-
 from bs4 import BeautifulSoup
 from collections import Counter 
 
@@ -71,7 +70,7 @@ class ClaimsDataset(torch.utils.data.Dataset):
         df = df.dropna()  # subset=['is complaint valid'])
         df = df.reset_index(drop=True)
 
-        df['complain'] = df['complain'].apply(lambda item: BeautifulSoup(item ,"lxml").text)
+        df['complain'] = df['complain'].apply(lambda item: BeautifulSoup(item,"lxml").text)
 
         self.max_len_c = df['complain'].map(lambda row: len(row.split())).max()
         self.max_len_t = df['title'].map(lambda row: len(row.split())).max()
@@ -80,18 +79,14 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
     @staticmethod
     def tokenize_data(df_):
-        # stop words
+        tkzr = RegexpTokenizer('\w+')
         stop_words = set(stopwords.words('english'))
 
-        # lower case then tokenize
+        # lower case, tokenize & stop words
         for header in ClaimsDataset.headers:
-            df_[header] = df_.apply(lambda row: word_tokenize(row[header].lower())
-                                                if type(row[header]) is str
-                                                else word_tokenize(row[header]), axis=1)
+            df_[header] = df_[header].apply(lambda row: tkzr.tokenize(row.lower()))
             df_[header] = df_[header].apply(lambda line: [w for w in line if w not in stop_words])
-
         return df_
-
 
     def make_vocab(self, vocab=None):
         if vocab is not None:
@@ -131,7 +126,7 @@ class ClaimsDataset(torch.utils.data.Dataset):
                                          else self.vocab.token2id[ClaimsDataset.UNK] for t in _comp]
 
         # turn to torch tensors for data loader
-        _title, _comp = torch.tensor(_title), torch.tensor(_comp)
+        _title, _comp = torch.tensor(_title), torch.tensor(_comp)       #  noqa
         return [_comp, _lab]
 
     def __len__(self):

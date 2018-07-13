@@ -18,7 +18,7 @@ def variable(obj, volatile=False):
 
 
 # make cuda object 
-def cuda(obj):
+def cuda(obj):                  #  noqa
     if torch.cuda.is_available():
         obj = obj.cuda()
     return obj
