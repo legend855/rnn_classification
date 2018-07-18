@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 from utils import get_seq_lengths, variable
+from torch.autograd import Variable
 
 
 class RNN(nn.Module):
@@ -15,10 +16,11 @@ class RNN(nn.Module):
         
         # layers
         self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
-        #self.rnn = nn.RNN(self.embedding_dim, self.hidden_size)
-        self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
-        self.dropout = nn.Dropout(p=0.2)
-        self.fc = nn.Linear(self.hidden_size, 1)
+        #self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
+        self.rnn = nn.GRU(self.embedding_dim, self.hidden_size, batch_first=True)
+        self.dropout = nn.Dropout(p=0.5)
+        self.fc = nn.Linear(self.hidden_size, 2)
+        self.sfx = nn.Softmax(dim=2)
 
     def forward(self, inputs):
         """
@@ -26,19 +28,52 @@ class RNN(nn.Module):
         :param inputs
         :return: output
         """
+        '''
         inputs = variable(inputs) # wrap in tensors => cuda
+        
 
         lengths, indices = get_seq_lengths(inputs, self.pad_id)
         inputs = inputs[indices]
 
-        # pack inputs
-        packed_in = nn.utils.rnn.pack_padded_sequence(self.emb(inputs), lengths.tolist(), batch_first=True)
-        #packed_in = self.dropout(packed_in)
-        outputs, (hidden, cell) = self.rnn(packed_in)   # forward
+        # embed inputs then dropout
+        embeds = self.emb(inputs)
+        drop_em = self.dropout(embeds)
 
+        # pack inputs
+        packed_in = nn.utils.rnn.pack_padded_sequence(drop_em, lengths.tolist(), batch_first=True)
+
+        _, (hidden, cell) = self.rnn(packed_in)   # forward
         output = self.fc(hidden)
+        output = self.sfx(output)
 
         _, unsort_ind = torch.sort(indices)     # unsort
         output = output.squeeze()[unsort_ind]  # dimensions
+        '''
+        batch_size = inputs.shape[0]
+        inputs = variable(inputs)  # wrap in tensors => cuda
+
+        lengths, indices = get_seq_lengths(inputs, self.pad_id)
+        inputs = inputs[indices]
+
+        embeds = self.emb(inputs)
+        drop_em = self.dropout(embeds)
+
+        # pack inputs
+        packed_in = nn.utils.rnn.pack_padded_sequence(drop_em, lengths.tolist(), batch_first=True)
+
+        hidden = self.init_hidden(batch_size)
+
+        _, hn = self.rnn(packed_in, hidden.unsqueeze(dim=0))
+
+        output = self.fc(hn)
+        output = self.sfx(output)
+
+        _, unsort_ind = torch.sort(indices)  # unsort
+        output = output.squeeze()[unsort_ind]  # dimensions
 
         return output
+
+    def init_hidden(self, batch_size):
+        weight = next(self.parameters()).data
+        hidden = Variable(weight.new(batch_size, self.hidden_size).zero_())
+        return hidden

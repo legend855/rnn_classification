@@ -13,17 +13,18 @@ from model import RNN
 from utils import cuda, variable
 from collections import defaultdict
 from sklearn import metrics
+from visdom import Visdom
 
 
 def main():
     # load data
-    #filename = 'data/train_and_test.csv'
-    filename = 'data/data_sample.csv'
+    # filename = 'data/train_and_test.csv'
+    filename = 'data/golden_set.csv'
 
     embedding_size = 128
-    hidden_size = 128
+    hidden_size = 24
     batch_size = 64
-    nb_epochs = 256
+    nb_epochs = 200
     lr = 1e-4
     max_norm = 3
 
@@ -33,30 +34,31 @@ def main():
     pad_id = ds.vocab.token2id.get('<pad>')
     print("\nDataset size: {}".format(ds.__len__()))
 
-    val_len = math.ceil(ds.__len__() * .15)
-    test_len = batch_size
-    train_len = ds.__len__() - (test_len + val_len)
-    print("\nTrain size: {}\tValidate size: {}\tTest size: {}".format(train_len, val_len, test_len))
+    test_len = val_len = math.ceil(ds.__len__() * .15)
+    train_len = ds.__len__() - val_len
+    print("\nTrain size: {}\tValidate size: {}".format(train_len, val_len))
 
     # randomly split dataset into tr, te, & val sizes
-    d_tr, d_val, d_test = torch.utils.data.dataset.random_split(ds, [train_len, val_len, test_len])
+    d_tr, d_val= torch.utils.data.dataset.random_split(ds, [train_len, val_len])
 
     # data loaders
-    dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)#, shuffle=True)
-    dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)#, shuffle=True)
-    dl_test = torch.utils.data.DataLoader(d_test, batch_size=batch_size)
+    dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)    #, shuffle=True)
+    dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)  #, shuffle=True)
+    #dl_test = torch.utils.data.DataLoader(d_test, batch_size=batch_size)
 
     model = RNN(vocab_size, hidden_size, embedding_size, pad_id)
     model = cuda(model)
 
     model.zero_grad()
     parameters = list(model.parameters())
-    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=0.2, amsgrad=True) # optimizer
-    criterion = nn.BCEWithLogitsLoss()  # nn.MultiLabelSoftMarginLoss()  # loss function
+    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=87e-3, amsgrad=True) # optimizer
+
+    criterion = nn.NLLLoss() # weight=torch.Tensor([1.0, 2.0]).cuda())  # loss function
 
     losses = defaultdict(list)
-
     phases, loaders = ['train', 'val'], [dl_tr, dl_val]
+
+    tr_acc, v_acc = [], []
 
     print("\nBegin training: {}\n".format( datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S') ))
     for epoch in range(nb_epochs):
@@ -66,15 +68,21 @@ def main():
             else:
                 model.eval()
 
-            ep_loss = []
+            ep_loss, out_list, label_list = [], [], []
             for i, inputs in enumerate(loader):
                 optim.zero_grad()
 
                 claim, labels = inputs
+                labels = variable(labels)
 
                 out = model(claim)
 
-                labels = variable(labels.float())
+                out_list.append(normalize_out(out))  # collect output from every epoch
+                label_list.append(labels)
+
+                out = torch.log(out)
+
+                # criterion.weight = get_weights(labels)
                 loss = criterion(out, labels)
 
                 # back propagate, for training only
@@ -85,39 +93,62 @@ def main():
 
                 ep_loss.append(loss.item())
 
-            losses[phase].append(np.mean(ep_loss))  # record only average losses from single epoch
+            losses[phase].append(np.mean(ep_loss))  # record only average losses from every phase at each epoch
 
-            print("Epoch: {} \t Phase: {} \t Loss: {:.4f}".format(epoch, phase, loss))
+            acc = get_accuracy(label_list, out_list)
+            if phase == 'train':
+                tr_acc.append(acc)
+            else:
+                v_acc.append(acc)
+
+            print("Epoch: {} \t Phase: {} \t Loss: {:.4f} \t Accuracy: {:.3f}".format(epoch, phase, loss, acc))
 
     print("\nTime finished: {}\n".format( datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')))
 
-    plot_loss(losses['train'], losses['val'])
+    plot_loss(losses['train'], losses['val'], tr_acc, v_acc, optim.param_groups[0]['weight_decay'], model.dropout.p)
 
+    '''
     # predict
     for i, inputs in enumerate(dl_test):
         claim, label = inputs
+        label = variable(label.float())
+
         out = model(claim)
         y_pred = normalize_out(out)
 
-        f1 = get_f1(label, y_pred) # f1 score
-        print("\n\t\tF1 score: {}\n\n".format(f1))
+        print("\n\t\tF1 score: {}\n\n".format(get_f1(label, y_pred)))   # f1 score
+    '''
 
 
 # my very own binary sigmoid lol
 def normalize_out(output):
-    y_pred = [0 if val < 0.5 else 1 for val in output]
-    return y_pred
+    y_pred = [0 if x > y else 1 for x, y in output]
+    return variable(torch.tensor(y_pred))
 
 
-def plot_loss(l1, l2):
-    plt.plot(l1, 'r', label='train', linewidth=.5)
-    plt.plot(l2, 'g', label='val', linewidth=.5)
+def get_accuracy(labels, preds):
+    acc = []
+    for x, y in zip(labels, preds):
+        acc.append(metrics.accuracy_score(x, y))
+
+    return np.mean(acc)
+
+
+def plot_loss(l1, l2, ac1, ac2, r, p):
+    viz = Visdom()
+
+    plt.plot(l1, 'k', label='train', linewidth=.5)
+    plt.plot(l2, 'r', label='val', linewidth=.5)
+    plt.plot(ac1, 'y', label='Train accuracy', linewidth=.5)
+    plt.plot(ac2, 'g', label='Val accuracy', linewidth=.5)
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
     plt.legend(loc=0)
-    plt.show()
-    plt.savefig('losses.png')
-
+    plt.savefig('losses/loss_'+'r='+str(r)+'p='+str(p)+'.png')
+    #plt.show()
+    viz.matplot(plt)
 
 
 def get_f1(y_true, y_pred):

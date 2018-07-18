@@ -9,3 +9,5 @@ classifier_pr.py
 data/*
 losses.png
 main*
+losses/*
+*.tar.gz

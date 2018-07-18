@@ -7,7 +7,8 @@ from nltk.corpus import stopwords
 from bs4 import BeautifulSoup
 from collections import Counter 
 
-import pandas as pd 
+import pandas as pd
+import numpy as np
 import torch.utils.data
 
 
@@ -55,10 +56,13 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
     def __init__(self, csvfile):
         self.filename = csvfile
-        self.max_len_c, self.max_len_t = 0, 0
 
         df = self.load_data()
         self.sc = self.tokenize_data(df)
+
+        self.max_len_t = self.sc['title'].apply(lambda row: len(row)).max()
+        self.max_len_c = self.sc['complain'].apply(lambda row: len(row)).max()
+
         self.make_vocab()
         self.nb_sentences = len(self.sc)
 
@@ -71,9 +75,6 @@ class ClaimsDataset(torch.utils.data.Dataset):
         df = df.reset_index(drop=True)
 
         df['complain'] = df['complain'].apply(lambda item: BeautifulSoup(item,"lxml").text)
-
-        self.max_len_c = df['complain'].map(lambda row: len(row.split())).max()
-        self.max_len_t = df['title'].map(lambda row: len(row.split())).max()
 
         return df
 
@@ -126,12 +127,11 @@ class ClaimsDataset(torch.utils.data.Dataset):
                                          else self.vocab.token2id[ClaimsDataset.UNK] for t in _comp]
 
         # turn to torch tensors for data loader
-        _title, _comp = torch.tensor(_title), torch.tensor(_comp)       #  noqa
+        _title, _comp = torch.tensor(_title), torch.tensor(_comp)
         return [_comp, _lab]
 
     def __len__(self):
         return self.nb_sentences
-
 
     @staticmethod
     def label_bin(s):
