@@ -18,11 +18,11 @@ from visdom import Visdom
 
 def main():
     # load data
-    # filename = 'data/train_and_test.csv'
-    filename = 'data/golden_set.csv'
+    #filename = 'data/train_and_test.csv'
+    filename = 'data/golden_test_and_val.csv'
 
-    embedding_size = 128
-    hidden_size = 24
+    embedding_size = 64
+    hidden_size = 32
     batch_size = 64
     nb_epochs = 200
     lr = 1e-4
@@ -32,26 +32,26 @@ def main():
     ds = ClaimsDataset(filename)
     vocab_size = ds.vocab.__len__()
     pad_id = ds.vocab.token2id.get('<pad>')
-    print("\nDataset size: {}".format(ds.__len__()))
+    print("\nDataset size: {}\tVocab Size: {}".format(ds.__len__(), vocab_size))
 
     test_len = val_len = math.ceil(ds.__len__() * .15)
-    train_len = ds.__len__() - val_len
-    print("\nTrain size: {}\tValidate size: {}".format(train_len, val_len))
+    train_len = ds.__len__() - val_len # + test_len)
+    print("\nTrain size: {}\tValidate size: {}\tTest Size: {}".format(train_len, val_len, test_len))
 
     # randomly split dataset into tr, te, & val sizes
-    d_tr, d_val= torch.utils.data.dataset.random_split(ds, [train_len, val_len])
+    d_tr, d_val, d_te= torch.utils.data.dataset.random_split(ds, [train_len, val_len, test_len])
 
     # data loaders
     dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)    #, shuffle=True)
     dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)  #, shuffle=True)
-    #dl_test = torch.utils.data.DataLoader(d_test, batch_size=batch_size)
+    #dl_test = torch.utils.data.DataLoader(d_te, batch_size=batch_size)
 
     model = RNN(vocab_size, hidden_size, embedding_size, pad_id)
     model = cuda(model)
 
     model.zero_grad()
     parameters = list(model.parameters())
-    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=87e-3, amsgrad=True) # optimizer
+    optim = torch.optim.Adam(parameters, lr=lr, weight_decay=37e-3, amsgrad=True) # optimizer
 
     criterion = nn.NLLLoss() # weight=torch.Tensor([1.0, 2.0]).cuda())  # loss function
 
@@ -88,7 +88,7 @@ def main():
                 # back propagate, for training only
                 if phase == 'train':
                     loss.backward()
-                    # torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)  # exploding gradients? say no more!
+                    torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)  # exploding gradients? say no more!
                     optim.step()
 
                 ep_loss.append(loss.item())
@@ -105,10 +105,11 @@ def main():
 
     print("\nTime finished: {}\n".format( datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')))
 
-    plot_loss(losses['train'], losses['val'], tr_acc, v_acc, optim.param_groups[0]['weight_decay'], model.dropout.p)
+    plot_loss(losses['train'], losses['val'], tr_acc, v_acc, optim.param_groups[0]['weight_decay'], model.dropout.p, hidden_size)
 
     '''
     # predict
+    f1_test = []
     for i, inputs in enumerate(dl_test):
         claim, label = inputs
         label = variable(label.float())
@@ -116,9 +117,10 @@ def main():
         out = model(claim)
         y_pred = normalize_out(out)
 
-        print("\n\t\tF1 score: {}\n\n".format(get_f1(label, y_pred)))   # f1 score
+        #print("\n\t\tF1 score: {}\n\n".format(get_f1(label, y_pred)))   # f1 score
+        f1_test.append(get_f1(label, y_pred))
+    print("\t\tF1: ".format(np.mean(f1_test)))
     '''
-
 
 # my very own binary sigmoid lol
 def normalize_out(output):
@@ -134,7 +136,7 @@ def get_accuracy(labels, preds):
     return np.mean(acc)
 
 
-def plot_loss(l1, l2, ac1, ac2, r, p):
+def plot_loss(l1, l2, ac1, ac2, r, p, h):
     viz = Visdom()
 
     plt.plot(l1, 'k', label='train', linewidth=.5)
@@ -146,13 +148,14 @@ def plot_loss(l1, l2, ac1, ac2, r, p):
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
     plt.legend(loc=0)
-    plt.savefig('losses/loss_'+'r='+str(r)+'p='+str(p)+'.png')
+    plt.savefig('losses/loss_'+'r='+str(r)+'p='+str(p)+'h='+str(h)+'.png')
     #plt.show()
     viz.matplot(plt)
 
 
 def get_f1(y_true, y_pred):
     return metrics.f1_score(y_true, y_pred)
+
 
 
 if __name__ == '__main__':

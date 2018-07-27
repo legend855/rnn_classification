@@ -26,3 +26,4 @@ def cuda(obj):                  #  noqa
 
 def get_seq_lengths(t, pad_id):
     return torch.sort(torch.sum(torch.ne(t, pad_id), dim=1), descending=True)
+

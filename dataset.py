@@ -56,7 +56,7 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
     def __init__(self, csvfile):
         self.filename = csvfile
-
+        print("Preparing vocab...\n")
         df = self.load_data()
         self.sc = self.tokenize_data(df)
 
@@ -65,6 +65,7 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
         self.make_vocab()
         self.nb_sentences = len(self.sc)
+        print("Vocab ready...\n")
 
         super().__init__()
 
@@ -103,9 +104,9 @@ class ClaimsDataset(torch.utils.data.Dataset):
                                                                 else line[:self.max_len_c - 1])
             self.sc[header] = self.sc[header].apply(lambda line: line + [ClaimsDataset.EOS, ])
 
-
     def __getitem__(self, idx):
-        line = self.sc.iloc[idx.item()]
+        # line = self.sc.iloc[idx.item()]
+        line = self.sc.iloc[idx]
 
         _title, _comp, _lab = line['title'], line['complain'], line['is complaint valid']
         _lab = self.label_bin(_lab)
@@ -142,5 +143,5 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
 
 if __name__ == '__main__':
-    d = ClaimsDataset('data/data_sample.csv')
+    d = ClaimsDataset('data/golden_400.csv')
     print(d.__getitem__(5)[0])
