@@ -1,15 +1,11 @@
 
 .idea/*
 .vscode/*
-Notes.txt
-Results/*
-__pycache__/*
-bread.py
-classifier_pr.py
-data/*
-losses.png
-main*
-losses/*
-*.tar.gz
-dogs
-embed_vec
+logs/
+__pycache__
+Results
+*.csv
+data/Embeddings/
+Results
+
+
