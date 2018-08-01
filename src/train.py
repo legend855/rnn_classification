@@ -18,8 +18,8 @@ from visdom import Visdom
 
 def main():
     # input file
-    #filename = '~/Documents/Bread/data/train_and_test.csv'
-    filename = '~/Documents/Bread/data/golden_test_and_val.csv'
+    #filename = 'data/train_and_test.csv'
+    filename = 'data/golden_test_and_val.csv'
 
     embedding_size = 300
     hidden_size = 32
