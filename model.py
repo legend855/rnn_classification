@@ -17,8 +17,8 @@ class RNN(nn.Module):
         self.pad_id = pad_id
         
         # layers
-        self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
-        # self.emb = nn.Embedding.from_pretrained(get_embs())
+        #self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
+        self.emb = nn.Embedding.from_pretrained(get_embs())
         #self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
         self.rnn = nn.GRU(self.embedding_dim, self.hidden_size, batch_first=True)
         self.dropout = nn.Dropout(p=0.5)
@@ -69,7 +69,7 @@ class RNN(nn.Module):
 
         _, hn = self.rnn(packed_in, hidden.unsqueeze(dim=0))
 
-        output = self.fc(hn)
+        output = self.fc(hn.float())
         output = self.sfx(output)
 
         _, unsort_ind = torch.sort(indices)  # unsort
@@ -78,6 +78,11 @@ class RNN(nn.Module):
         return output
 
     def init_hidden(self, batch_size):
+        """
+        Create initial hidden state of zeros
+        :param batch_size: size of every batch
+        :return: tensor of size batch_size x hidden_size of zeros
+        """
         weight = next(self.parameters()).data
         hidden = Variable(weight.new(batch_size, self.hidden_size).zero_())
         return hidden
