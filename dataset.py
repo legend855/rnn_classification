@@ -105,8 +105,8 @@ class ClaimsDataset(torch.utils.data.Dataset):
             self.sc[header] = self.sc[header].apply(lambda line: line + [ClaimsDataset.EOS, ])
 
     def __getitem__(self, idx):
-        # line = self.sc.iloc[idx.item()]
-        line = self.sc.iloc[idx]
+        line = self.sc.iloc[idx.item()]
+        # line = self.sc.iloc[idx]
 
         _title, _comp, _lab = line['title'], line['complain'], line['is complaint valid']
         _lab = self.label_bin(_lab)

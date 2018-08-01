@@ -14,14 +14,15 @@ from utils import cuda, variable
 from collections import defaultdict
 from sklearn import metrics
 from visdom import Visdom
+from tqdm import tqdm
 
 
 def main():
-    # load data
+    # input file
     #filename = 'data/train_and_test.csv'
     filename = 'data/golden_test_and_val.csv'
 
-    embedding_size = 64
+    embedding_size = 300
     hidden_size = 32
     batch_size = 64
     nb_epochs = 200
@@ -39,7 +40,7 @@ def main():
     print("\nTrain size: {}\tValidate size: {}\tTest Size: {}".format(train_len, val_len, test_len))
 
     # randomly split dataset into tr, te, & val sizes
-    d_tr, d_val, d_te= torch.utils.data.dataset.random_split(ds, [train_len, val_len, test_len])
+    d_tr, d_val = torch.utils.data.dataset.random_split(ds, [train_len, val_len])
 
     # data loaders
     dl_tr = torch.utils.data.DataLoader(d_tr, batch_size=batch_size)    #, shuffle=True)
@@ -50,7 +51,7 @@ def main():
     model = cuda(model)
 
     model.zero_grad()
-    parameters = list(model.parameters())
+    parameters = list([parameter for parameter in model.parameters() if parameter.requires_grad])
     optim = torch.optim.Adam(parameters, lr=lr, weight_decay=37e-3, amsgrad=True) # optimizer
 
     criterion = nn.NLLLoss() # weight=torch.Tensor([1.0, 2.0]).cuda())  # loss function

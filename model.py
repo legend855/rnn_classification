@@ -1,8 +1,10 @@
 
 import torch
 import torch.nn as nn
+
 from utils import get_seq_lengths, variable
 from torch.autograd import Variable
+from vectors import get_embs
 
 
 class RNN(nn.Module):
@@ -16,6 +18,7 @@ class RNN(nn.Module):
         
         # layers
         self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
+        # self.emb = nn.Embedding.from_pretrained(get_embs())
         #self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
         self.rnn = nn.GRU(self.embedding_dim, self.hidden_size, batch_first=True)
         self.dropout = nn.Dropout(p=0.5)
@@ -29,6 +32,7 @@ class RNN(nn.Module):
         :return: output
         """
         '''
+        # LSTM Code
         inputs = variable(inputs) # wrap in tensors => cuda
         
 
