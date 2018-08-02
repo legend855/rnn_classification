@@ -13,6 +13,10 @@ import torch.utils.data
 
 class Vocabulary(object):
     def __init__(self, special_tokens=None):
+        """
+        Make a vocabulary
+        :param special_tokens:
+        """
         super(Vocabulary, self).__init__()
 
         self.num_tokens = 0
@@ -54,8 +58,13 @@ class ClaimsDataset(torch.utils.data.Dataset):
     headers = ['title', 'complain']
 
     def __init__(self, csvfile):
+        """
+        Clean data and create a vocabulary from given csvfile
+        :param csvfile: csv file with claims and labels
+        """
+        print("\nPreparing vocab...\n")
         self.filename = csvfile
-        print("Preparing vocab...\n")
+
         df = self.load_data()
         self.sc = self.tokenize_data(df)
 
@@ -64,7 +73,7 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
         self.make_vocab()
         self.nb_sentences = len(self.sc)
-        print("Vocab ready...\n")
+        print("Vocab ready; Size: {} tokens\n".format(len(self.vocab.token2id)))
 
         super().__init__()
 
@@ -80,6 +89,11 @@ class ClaimsDataset(torch.utils.data.Dataset):
 
     @staticmethod
     def tokenize_data(df_):
+        """
+        Lower case and tokenize sentences
+        :param df_: dataframe
+        :return: dataframe with lower cased and tokenized sentences
+        """
         tkzr = RegexpTokenizer('\w+')
         stop_words = set(stopwords.words('english'))
 

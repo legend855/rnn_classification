@@ -8,7 +8,7 @@ from vectors import get_embs
 
 
 class RNN(nn.Module):
-    def __init__(self, vocab_size, hidden_size, embedding_dim, pad_id):
+    def __init__(self, vocab_size, hidden_size, embedding_dim, pad_id, dataset=None):
         super(RNN, self).__init__()
 
         self.vocab_size = vocab_size
@@ -18,7 +18,7 @@ class RNN(nn.Module):
         
         # layers
         #self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
-        self.emb = nn.Embedding.from_pretrained(get_embs())
+        self.emb = nn.Embedding.from_pretrained(get_embs(dataset))
         self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
         self.rnn = nn.GRU(self.embedding_dim, self.hidden_size, batch_first=True)
         self.dropout = nn.Dropout(p=0.4)
@@ -72,7 +72,7 @@ class RNN(nn.Module):
         _, hn = self.rnn(packed_in, hidden.unsqueeze(dim=0))
 
         output = self.fc(hn.float())
-        output = self.sfx(output)
+        #output = self.sfx(output)
 
         _, unsort_ind = torch.sort(indices)  # unsort
         output = output.squeeze()[unsort_ind]  # dimensions

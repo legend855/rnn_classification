@@ -3,7 +3,6 @@ import pickle
 import os
 import torch
 
-from dataset import ClaimsDataset
 from tqdm import tqdm
 
 
@@ -18,8 +17,7 @@ def load_embeddings(name, outfile, dd):
     count = 0
     vocab = dd.vocab.token_counts.keys()
 
-    print("Size of vocab: {}\n".format(len(vocab)))
-    print("Preparing embeddings...\n")
+    print("\n\nPreparing embeddings...\n")
     with open(name, 'r') as f, open(outfile, 'wb') as out:
         next(f)
         for line in tqdm(f):
@@ -31,12 +29,12 @@ def load_embeddings(name, outfile, dd):
             else:
                 pass
 
-        print("Embeddings found: {}".format(count)) # number of words in Claims vocab whose embeddings now exist
-        print("{} words do not have embeddings\n\n".format(len(vocab) - count))
+        print("\nEmbeddings found for {} words.".format(count), end=' ') # number of words in Claims vocab whose embeddings now exist
+        print("{} words do not have embeddings.\n\n".format(len(vocab) - count))
         pickle.dump(word_vec_dict, out)
 
 
-def get_embs():
+def get_embs(dataset):
     """
     Add embeddings for unknown words in vocab
     :return: sorted stack of embeddings
@@ -44,27 +42,28 @@ def get_embs():
     # filename = 'data/Embeddings/wiki-news-300d-1M-subword.vec'
     raw_embedding_file = 'data/Embeddings/crawl-300d-2M.vec'
     pickled_vecs = 'data/pickle/vectors.pkl'
-    dd = ClaimsDataset('data/golden_400.csv')
 
     if not os.path.exists(pickled_vecs):
-        load_embeddings(raw_embedding_file, pickled_vecs, dd)
+        load_embeddings(raw_embedding_file, pickled_vecs, dataset)
 
     with open(pickled_vecs, 'rb') as vec_file:
         vectors = pickle.load(vec_file)  # vecs is a dictionary where key: word(str), embedding(np.array)
 
-    non_words = [w for w in dd.vocab.token_counts.keys() if w not in vectors.keys()]
-    non_words = non_words[4:]
+    # list of words that are not in current vocab
+    non_words = [w for w in dataset.vocab.token_counts.keys() if w not in vectors.keys()]
+    non_words = non_words[4:]   # remove special tokens
+    print("\nSample words without embeddings: {}\n".format(non_words[:2]))
 
     # embedding for unknown tokens
     unk_emb = np.random.uniform(-1, 1, (300,))
 
     for word in non_words:
-        vectors.update({word: unk_emb })
+        vectors.update({word: unk_emb})
 
     with open(pickled_vecs, 'wb') as vec_file:
         pickle.dump(vectors, vec_file)
 
-    return sort_embeddings(dd.vocab.token2id, vectors) # START HERE TOMORROW SEND EMBEDDINGS TO ENMBEDDING LAYER
+    return sort_embeddings(dataset.vocab.token2id, vectors) # START HERE TOMORROW SEND EMBEDDINGS TO ENMBEDDING LAYER
 
 
 def sort_embeddings(token2id, raw_dict):
