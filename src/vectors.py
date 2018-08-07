@@ -87,6 +87,11 @@ def sort_embeddings(token2id, raw_dict):
     return torch.tensor(final_embeddings).float()
 
 
+def nonword_embeddings(max_length):
+    return torch.tensor(np.zeros((max_length,)))
+
+
+'''
 def match_embeddings(idx2w, w2vec_em, dim):
     embeddings = []
     voc_size = len(idx2w)
@@ -99,10 +104,8 @@ def match_embeddings(idx2w, w2vec_em, dim):
 
     embeddings = np.stack(embeddings)
     return embeddings
+'''
 
-
-def nonword_embeddings(max_length):
-    return torch.tensor(np.zeros((max_length,)))
 
 
 if __name__ == '__main__':

@@ -72,7 +72,7 @@ class RNN(nn.Module):
         _, hn = self.rnn(packed_in, hidden.unsqueeze(dim=0))
 
         output = self.fc(hn.float())
-        #output = self.sfx(output)
+        output = self.sfx(output)
 
         _, unsort_ind = torch.sort(indices)  # unsort
         output = output.squeeze()[unsort_ind]  # dimensions

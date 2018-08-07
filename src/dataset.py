@@ -26,7 +26,7 @@ class Vocabulary(object):
         self.special_tokens = []
         if special_tokens is not None:
             self.special_tokens = special_tokens
-            self.add_document( self.special_tokens )
+            self.add_document(self.special_tokens)
 
     # Here goes the good stuff 
     def add_document(self, doc):
@@ -78,12 +78,16 @@ class ClaimsDataset(torch.utils.data.Dataset):
         super().__init__()
 
     def load_data(self):
+        """
+        Clan out dataset and return only the relevant columns
+        :return: dataframe of columns: title, claim and label
+        """
         df = pd.read_csv(self.filename)
         df = df.loc[:, ['title', 'complain', 'is complaint valid']]
         df = df.dropna()  # subset=['is complaint valid'])
         df = df.reset_index(drop=True)
 
-        df['complain'] = df['complain'].apply(lambda item: BeautifulSoup(item,"lxml").text)
+        df['complain'] = df['complain'].apply(lambda item: BeautifulSoup(item, "lxml").text)
 
         return df
 
@@ -104,6 +108,10 @@ class ClaimsDataset(torch.utils.data.Dataset):
         return df_
 
     def make_vocab(self, vocab=None):
+        """
+        Create the vocabulary of words found in the dataset
+        :param vocab: Predefined vocabulary
+        """
         if vocab is not None:
             self.vocab = vocab
         else:
@@ -118,8 +126,15 @@ class ClaimsDataset(torch.utils.data.Dataset):
             self.sc[header] = self.sc[header].apply(lambda line: line + [ClaimsDataset.EOS, ])
 
     def __getitem__(self, idx):
-        line = self.sc.iloc[idx.item()]
-        # line = self.sc.iloc[idx]
+        """
+        given an index of an item, return it's label and word ids
+        :param idx: index of line
+        :return: tuple of tensor of word ids in sentence and its label
+        """
+        if isinstance(idx, int):
+            line = self.sc.iloc[idx]
+        else:
+            line = self.sc.iloc[idx.item()]
 
         _title, _comp, _lab = line['title'], line['complain'], line['is complaint valid']
         _lab = self.label_bin(_lab)
@@ -145,6 +160,10 @@ class ClaimsDataset(torch.utils.data.Dataset):
         return [_comp, _lab]
 
     def __len__(self):
+        """
+        Return the size of the dataset
+        :return: number of sentences
+        """
         return self.nb_sentences
 
     @staticmethod
