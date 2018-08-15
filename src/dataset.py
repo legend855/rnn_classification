@@ -75,7 +75,7 @@ class ClaimsDataset(torch.utils.data.Dataset):
         self.nb_sentences = len(self.sc)
         print("Vocab ready; Size: {} tokens\n".format(len(self.vocab.token2id)))
 
-        super().__init__()
+        super(ClaimsDataset, self).__init__()
 
     def load_data(self):
         """
@@ -156,12 +156,12 @@ class ClaimsDataset(torch.utils.data.Dataset):
                                          else self.vocab.token2id[ClaimsDataset.UNK] for t in _comp]
 
         # turn to torch tensors for data loader
-        _title, _comp = torch.tensor(_title), torch.tensor(_comp)
-        return [_comp, _lab]
+        _title, _comp = torch.Tensor(_title), torch.Tensor(_comp)
+        return _comp, _lab
 
     def __len__(self):
         """
-        Return the size of the dataset
+        Get size of dataset
         :return: number of sentences
         """
         return self.nb_sentences

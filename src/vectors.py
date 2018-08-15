@@ -63,7 +63,7 @@ def get_embs(dataset):
     with open(pickled_vecs, 'wb') as vec_file:
         pickle.dump(vectors, vec_file)
 
-    return sort_embeddings(dataset.vocab.token2id, vectors) # START HERE TOMORROW SEND EMBEDDINGS TO ENMBEDDING LAYER
+    return sort_embeddings(dataset.vocab.token2id, vectors)
 
 
 def sort_embeddings(token2id, raw_dict):
@@ -84,11 +84,11 @@ def sort_embeddings(token2id, raw_dict):
 
     final_embeddings = np.stack(sorted_embs)
 
-    return torch.tensor(final_embeddings).float()
+    return torch.Tensor(final_embeddings)#.float()
 
 
 def nonword_embeddings(max_length):
-    return torch.tensor(np.zeros((max_length,)))
+    return torch.Tensor(np.zeros((max_length,)))
 
 
 '''
