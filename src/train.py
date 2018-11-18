@@ -1,20 +1,17 @@
 import math
+import utils
 import torch
-import torch.cuda
-import torch.nn as nn
-import torch.utils.data
-import matplotlib.pyplot as plt
-import numpy as np
-import time
-import datetime
 import logging
+import torch.cuda
+import torch.utils.data
 
-from dataset import ClaimsDataset
+import numpy as np
+import torch.nn as nn
+
 from model import RNN
-from utils import cuda, variable
-from collections import defaultdict
 from sklearn import metrics
-from visdom import Visdom
+from dataset import ClaimsDataset
+from collections import defaultdict
 
 
 def main():
@@ -24,21 +21,22 @@ def main():
     save_path = 'history/trained_model'
 
     # input file
-    #filename = 'data/train_and_test.csv'
-    filename = 'data/golden_test_and_val.csv'
+    filename = 'data/train_and_test.csv'
+    # filename = 'data/golden_400.csv'
 
-    embedding_size = 300
+    embedding_size = 300    # 128 for torch embeddings, 300 for pre-trained
     hidden_size = 24
     batch_size = 64
-    nb_epochs = 200
+    nb_epochs = 150
     lr = 1e-4
-    max_norm = 3
+    max_norm = 4
+    dropout = 0.5
     folds = 3
 
     # Dataset
     ds = ClaimsDataset(filename)
     vocab_size = ds.vocab.__len__()
-    pad_id = ds.vocab.token2id.get('<pad>')
+    pad_id = ds.vocab.token2id.get(ds.PAD)
 
     test_len = val_len = math.ceil(ds.__len__() * .10)
     train_len = ds.__len__() - (val_len + test_len)
@@ -52,20 +50,21 @@ def main():
     dl_val = torch.utils.data.DataLoader(d_val, batch_size=batch_size)
     dl_test = torch.utils.data.DataLoader(d_te, batch_size=batch_size)
 
-    model = RNN(vocab_size, hidden_size, embedding_size, pad_id, ds)
-    model = cuda(model)
+    model = RNN(vocab_size, embedding_size, hidden_size, pad_id, dropout, ds)
+    model = utils.cuda(model)
     model.zero_grad()
+
     parameters = list([parameter for parameter in model.parameters() if parameter.requires_grad])
+    # parameters = list(model.parameters())   # comment out when using pre-trained embeddings
+
     optim = torch.optim.Adam(parameters, lr=lr, weight_decay=35e-3, amsgrad=True) # optimizer
-    # criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1.0, 2.0]).cuda())
-    criterion = nn.NLLLoss(weight=torch.Tensor([1.0, 2.0]).cuda())
+    criterion = nn.NLLLoss(weight=torch.Tensor([1.0, 2.2]).cuda())
     losses = defaultdict(list)
 
-    print("\nTraining started: {}\n".format(get_time()))
+    print("\nTraining started: {}\n".format(utils.get_time()))
 
     phases, loaders = ['train', 'val'], [dl_tr, dl_val]
     tr_acc, v_acc = [], []
-
 
     for epoch in range(nb_epochs):
         for phase, loader in zip(phases, loaders):
@@ -79,11 +78,11 @@ def main():
                 optim.zero_grad()
 
                 claim, labels = inputs
-                labels = variable(labels)
+                labels = utils.variable(labels)
 
                 out = model(claim)
 
-                out_list.append(normalize_out(out))  # collect output from every epoch
+                out_list.append(utils.normalize_out(out))  # collect output from every epoch
                 label_list.append(labels)
 
                 out = torch.log(out)
@@ -101,7 +100,7 @@ def main():
 
             losses[phase].append(np.mean(ep_loss))  # record average losses from every phase at each epoch
 
-            acc = get_accuracy(label_list, out_list)
+            acc = utils.get_accuracy(label_list, out_list)
             if phase == 'train':
                 tr_acc.append(acc)
             else:
@@ -109,11 +108,9 @@ def main():
 
             print("Epoch: {} \t Phase: {} \t Loss: {:.4f} \t Accuracy: {:.3f}".format(epoch, phase, loss, acc))
 
-    print("\nTime finished: {}\n".format(get_time()))
+    print("\nTime finished: {}\n".format(utils.get_time()))
 
-    plot_loss(losses['train'], losses['val'], tr_acc, v_acc,
-              optim.param_groups[0]['weight_decay'], model.dropout.p, hidden_size, filename)
-
+    utils.plot_loss(losses['train'], losses['val'], tr_acc, v_acc, filename, -1)
 
     logging.info("\nTrain file=> "+filename+"\nParameters=> \nBatch size: "+str(batch_size) +
                  "\nHidden size: "+str(hidden_size)+"\nMax_norm: "+str(max_norm) +
@@ -125,82 +122,23 @@ def main():
     # Save the model
     torch.save(model.state_dict(), save_path)
 
-    #test(model, batch_size)
+    # test(model, batch_size)
 
     # predict
     f1_test, acc_test = [], []
     for i, inputs in enumerate(dl_test):
         claim, label = inputs
-        label = variable(label.float())
+        label = utils.variable(label.float())
 
         out = model(claim)
-        y_pred = normalize_out(out)
+        y_pred = utils.normalize_out(out)
 
-        #print("\n\t\tF1 score: {}\n\n".format(get_f1(label, y_pred)))   # f1 score
-        f1_test.append(get_f1(label, y_pred))
+        # print("\n\t\tF1 score: {}\n\n".format(get_f1(label, y_pred)))   # f1 score
+        f1_test.append(utils.get_f1(label, y_pred))
         acc_test.append(metrics.accuracy_score(label, y_pred))
 
     print("\t\tF1: {:.3f}\tAccuracy: {:.3f}".format(np.mean(f1_test), np.mean(acc_test)))
     logging.info('\nTest f1: '+str(np.mean(f1_test))+'\nTest Accuracy: '+str(np.mean(acc_test)))
-
-
-def normalize_out(output):
-    y_pred = [0 if x > y else 1 for x, y in output]
-    return variable(torch.Tensor(y_pred))
-
-
-def get_accuracy(labels, preds):
-    acc = []
-    for x, y in zip(labels, preds):
-        acc.append(metrics.accuracy_score(x, y))
-
-    return np.mean(acc)
-
-
-def get_time():
-    return datetime.datetime.fromtimestamp(time.time()).strftime('%H:%M:%S')
-
-
-def plot_loss(l1, l2, ac1, ac2, r, p, h, name):
-    viz = Visdom()
-
-    plt.plot(l1, 'k', label='train', linewidth=.5)
-    plt.plot(l2, 'r', label='val', linewidth=.5)
-    plt.plot(ac1, 'y', label='Train accuracy', linewidth=.5)
-    plt.plot(ac2, 'g', label='Val accuracy', linewidth=.5)
-    plt.title(name)
-    plt.ylabel('Loss')
-    plt.xlabel('Epoch')
-    plt.gca().spines['top'].set_visible(False)
-    plt.gca().spines['right'].set_visible(False)
-    plt.legend(loc=0)
-    viz.matplot(plt)
-    plt.savefig('plots/loss_'+'r='+str(r)+'p='+str(p)+'h='+str(h)+'.png')
-    #plt.show()
-
-
-def get_f1(y_true, y_pred):
-    return metrics.f1_score(y_true, y_pred)
-
-
-def test(model, batch_size):
-    test_ds = ClaimsDataset('data/test.csv')
-    acc, f1 = [], []
-    dl = torch.utils.data.DataLoader(test_ds, batch_size)
-
-    for i, inp in enumerate(dl):
-        claim, label = inp
-        label = variable(label.float())
-
-        out = model(claim)
-        y_pred = normalize_out(out)
-
-        # print("\n\t\tF1 score: {}\n\n".format(get_f1(label, y_pred)))   # f1 score
-        f1.append(get_f1(label, y_pred))
-        acc.append(get_accuracy(label, y_pred))
-    print("\t\tF1: ".format(np.mean(f1)))
-    logging.info("Test F1: "+np.mean(f1)+"\nAccuracy"+np.mean(acc))
-
 
 
 if __name__ == '__main__':

@@ -68,24 +68,22 @@ class ClaimsDataset(torch.utils.data.Dataset):
         df = self.load_data()
         self.sc = self.tokenize_data(df)
 
-        self.max_len_t = self.sc['title'].apply(lambda row: len(row)).max()
-        self.max_len_c = self.sc['complain'].apply(lambda row: len(row)).max()
+        self.max_len_t = 20 #self.sc['title'].apply(lambda row: len(row)).max()
+        self.max_len_c = 300    #self.sc['complain'].apply(lambda row: len(row)).max()
 
         self.make_vocab()
         self.nb_sentences = len(self.sc)
         print("Vocab ready; Size: {} tokens\n".format(len(self.vocab.token2id)))
 
-        super().__init__()
+        super(ClaimsDataset, self).__init__()
 
     def load_data(self):
         """
-        Clan out dataset and return only the relevant columns
-        :return: dataframe of columns: title, claim and label
+        :return: dataframe with 3 columns: title, claim and label
         """
         df = pd.read_csv(self.filename)
         df = df.loc[:, ['title', 'complain', 'is complaint valid']]
-        df = df.dropna()  # subset=['is complaint valid'])
-        df = df.reset_index(drop=True)
+        df = df.dropna().sample(frac=1).reset_index(drop=True)
 
         df['complain'] = df['complain'].apply(lambda item: BeautifulSoup(item, "lxml").text)
 
@@ -139,12 +137,10 @@ class ClaimsDataset(torch.utils.data.Dataset):
         _title, _comp, _lab = line['title'], line['complain'], line['is complaint valid']
         _lab = self.label_bin(_lab)
 
-        # pad title
         t_pads = self.max_len_t - len(_title)
         if t_pads > 0:
             _title = _title + [ClaimsDataset.PAD] * t_pads
         
-        # pad complaint
         c_pads = self.max_len_c - len(_comp)
         if c_pads > 0:
             _comp = _comp + [ClaimsDataset.PAD] * c_pads
@@ -156,12 +152,12 @@ class ClaimsDataset(torch.utils.data.Dataset):
                                          else self.vocab.token2id[ClaimsDataset.UNK] for t in _comp]
 
         # turn to torch tensors for data loader
-        _title, _comp = torch.tensor(_title), torch.tensor(_comp)
-        return [_comp, _lab]
+        _title, _comp = torch.Tensor(_title), torch.Tensor(_comp)
+        return _comp, _lab
 
     def __len__(self):
         """
-        Return the size of the dataset
+        Get size of dataset
         :return: number of sentences
         """
         return self.nb_sentences
