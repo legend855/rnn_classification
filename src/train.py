@@ -142,7 +142,6 @@ def main():
     logging.info('\nTest f1: '+str(np.mean(f1_test))+'\nTest Accuracy: '+str(np.mean(acc_test)))
 
 
-
 if __name__ == '__main__':
     main()
 
