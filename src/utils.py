@@ -9,10 +9,10 @@ from sklearn import metrics
 from visdom import Visdom
 from torch.autograd import Variable
 
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.utils.data.dataset as torch_dataset
-
 
 # create a variable => borrowed from jgc123
 def variable(obj, volatile=False):
@@ -27,7 +27,7 @@ def variable(obj, volatile=False):
     return obj
 
 
-# make cuda object 
+# make cuda object
 def cuda(obj):                  #  noqa
     if torch.cuda.is_available():
         obj = obj.cuda()

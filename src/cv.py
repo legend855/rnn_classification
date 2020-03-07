@@ -1,121 +1,165 @@
 
-import math
+
 import torch
 import torch.cuda
 import skorch
 import logging
+import torch.utils.data
+import utils
 
+import numpy as np
 import torch.nn as nn
+import torch.utils.data as torch_data
 
-from utils import cuda, variable
 from model import RNN
 from dataset import ClaimsDataset
-from skorch import NeuralNetClassifier
-from sklearn.metrics import accuracy_score
-
-
-class Train(skorch.NeuralNet):
-    def __init__(self, module, lr, norm *args, **kwargs):
-        self.module = module
-        self.lr = lr
-        self.norm = norm
-
-        super(Train,  self).__init__(self.module, *args, **kwargs)
-
-    def initialize_optimizer(self):
-        self.params = [p for p in self.module.parameters(self) if p.requires_grad]
-        self.optimizer = torch.optim.Adam(params=self.params, lr=self.lr, weight_decay=35e-3, amsgrad=True)
-
-    def train_step(self, Xi, yi, **fit_params):
-        self.module.train()
-
-        self.optimizer.zero_grad()
-        yi = variable(yi)
-
-        output = self.module(Xi)
-
-        loss = self.criterion(output, yi)
-        loss.backward()
-
-        nn.utils.clip_grad_norm_(self.params, max_norm=self.norm)
-        self.optimizer.step()
-
-    def initialize_criterion(self):
-        self.criterion = torch.nn.NLLLoss(weight=torch.Tensor([1.0, 2.0]).cuda())
-
-    def score(self, y_t, y_p):
-        return accuracy_score(y_t, y_p)
-
-    #def infer(self, x, **fit_params):
+from collections import defaultdict
+from sklearn import metrics
+from logging.handlers import TimedRotatingFileHandler
 
 
 def main():
 
-    filename = 'data/golden_test_and_val.csv'
-    embedding_dim = 300
-    hidden_size = 24
-    batch_size = 64
-    nb_epochs = 200
-    lr = 3e-4
-    max_norm = 3
+    # saved model path
+    save_path = 'history/model_fold_'
 
-    #train = Train(module=RNN, criterion=nn.CrossEntropyLoss, lr=lr, norm=max_norm)
-
+    # create dataset
+    filename = 'data/golden_400.csv'
 
     ds = ClaimsDataset(filename)
     vocab_size = ds.vocab.__len__()
     pad_id = ds.vocab.token2id.get('<pad>')
 
-    val_len = math.ceil(ds.__len__() * .10)
-    tr_len = ds.__len__() - val_len
+    embedding_size = 128    # 128 for torch embeddings, 300 for pre-trained
+    hidden_size = 24
+    batch_size = 64
+    nb_epochs = 150
+    lr = 1e-4
+    max_norm = 5
+    folds = 10
+    dropout = 0.5
+    criterion = nn.NLLLoss(weight=torch.Tensor([1.0, 2.2]).cuda())
 
-    # Split data
-    d_tr, d_val = torch.utils.data.dataset.random_split(ds, [tr_len, val_len])
-    dl_tr = torch.utils.data.DataLoader(d_tr, batch_size)
-    dl_val = torch.utils.data.DataLoader(d_val, batch_size)
+    # For testing phase
+    fold_scores = {}
+    # test_set = ClaimsDataset(test_file)
+    # dl_test = torch_data.DataLoader(test_set, batch_size=batch_size, shuffle=True)
+    mean = []       # holds the mean validation accuracy of every fold
+    print("\nTraining\n")
+    logger.info(utils.get_time())
 
-    model = RNN(vocab_size, hidden_size, embedding_dim, pad_id, ds)
-    model = cuda(model)
+    for i in range(folds):
+        print("\nFold: {}\n".format(i))
 
-    params = model.parameters()
+        losses = defaultdict(list)
+        train, val = utils.split_dataset(ds, i)
 
-    '''
-    net = NeuralNetClassifier(module=RNN, module__vocab_size=vocab_size, module__hidden_size=hidden_size,
-                              module__embedding_dim=embedding_dim, module__pad_id=pad_id,
-                              module__dataset=ClaimsDataset, lr=lr, criterion=nn.CrossEntropyLoss,
-                              optimizer=torch.optim.Adam, optimizer__weight_decay=35e-3, device='cuda',
-                              max_epochs=nb_epochs, warm_start=True)
+        print("Train size: {} \t Validate size: {}".format(len(train), len(val)))
 
-    '''
+        dl_train = torch_data.DataLoader(train, batch_size=batch_size, shuffle=True)
+        dl_val = torch_data.DataLoader(val, batch_size=batch_size, shuffle=True)
 
-    trainer = Train(module=RNN, module__vocab_size=vocab_size, module__hidden_size=hidden_size,
-                    module__embedding_dim=embedding_dim, module__pad_id=pad_id, lr=lr, norm=max_norm,)
+        model = RNN(vocab_size, embedding_size, hidden_size, pad_id, dropout, ds)
+        model = utils.cuda(model)
+        model.zero_grad()
 
-    trainer.initialize(vocab_size, hidden_size, embedding_dim, pad_id)
+        # When using pre-trained embeddings, uncomment below otherwise, use the second statement
+        #parameters = list([parameter for parameter in model.parameters()
+        #                   if parameter.requires_grad])
+        parameters = list(model.parameters())
 
-    '''
-    net.initialize()
-    #net.load_params()
+        optim = torch.optim.Adam(parameters, lr=lr, weight_decay=35e-3, amsgrad=True)
 
-    # how to handle the data skorch needs to predict
-    for i, inp in enumerate(dl_tr):
-        claims, labels = inp
-        print(len(claims), len(labels))
+        phases, loaders = ['train', 'val'], [dl_train, dl_val]
+        tr_acc, v_acc = [], []
 
-        net.fit(claims, labels)
+        for epoch in range(nb_epochs):
+            for p, loader in zip(phases, loaders):
+                if p == 'train':
+                    model.train()
+                else:
+                    model.eval()
 
+                ep_loss, out_list, label_list = [], [], []
+                for _, inputs in enumerate(loader):
+                    optim.zero_grad()
 
+                    claim, labels = inputs
+                    labels = utils.variable(labels)
 
-    y_pred, y_true = [], []
-    for i, inp in enumerate(dl_val):
-        claim, label = inp
-        y_true.append(variable(label))
-        y_pred.append(net.predict(claim))
+                    out = model(claim)
 
-    acc = accuracy_score(y_true, y_pred)
-    print(acc)
-    '''
+                    out_list.append(utils.normalize_out(out))
+                    label_list.append(labels)
+
+                    out = torch.log(out)
+                    loss = criterion(out, labels)
+
+                    if p == 'train':
+                        loss.backward()
+                        torch.nn.utils.clip_grad_norm_(parameters, max_norm=max_norm)
+                        optim.step()
+
+                    ep_loss.append(loss.item())
+                losses[p].append(np.mean(ep_loss))
+
+                acc = utils.get_accuracy(label_list, out_list)
+                if p == 'train':
+                    tr_acc.append(acc)
+                else:
+                    v_acc.append(acc)
+                print("Epoch: {} \t Phase: {} \t Loss: {:.4f} \t Accuracy: {:.3f}"
+                      .format(epoch, p, loss, acc))
+
+        utils.plot_loss(losses['train'], losses['val'], tr_acc, v_acc, filename, i)
+        mean.append(np.mean(v_acc))
+        logger.info("\n Fold: "+str(i))
+        logger.info("Train file=> " + filename + "\nParameters=> \nBatch size: " + str(batch_size) +
+                     "\nHidden size: " + str(hidden_size) + "\nMax_norm: " + str(max_norm) +
+                     "\nL2 Reg/weight decay: " + str(optim.param_groups[0]['weight_decay']) +
+                     "\nLoss function: " + str(criterion))
+        logger.info('Final train accuracy: ' + str(tr_acc[-1]))
+        logger.info('Final validation accuracy: ' + str(v_acc[-1]))
+
+        # Save model for current fold
+        torch.save(model.state_dict(), save_path+str(i))
+
+        """
+        test_f1, test_acc = [], []
+        for _, inp in enumerate(dl_test):
+            claim, label = inp
+            label = utils.variable(label)
+
+            model.eval()
+            out = model(claim)
+            y_pred = utils.normalize_out(out)
+
+            test_f1.append(utils.get_f1(label, y_pred))
+            test_acc.append(metrics.accuracy_score(label, y_pred))
+        t_f1, t_acc = np.mean(test_f1), np.mean(test_acc)
+        fold_scores[i] = dict([('F1', t_f1), ('Accuracy', t_acc)])
+        print("\tf1: {:.3f} \t accuracy: {:.3f}".format(t_f1, t_acc))
+        #logger.info('\nTest f1: '+str(t_f1)+'\nTest Accuracy: '+str(t_acc))
+        """
+
+    logger.info('Mean accuracy over 10 folds: \t' + str(np.mean(mean)))
+    #logger.info(fold_scores)
+
 
 
 if __name__ == '__main__':
+    logfile = 'logs/cv.log'
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    logger = logging.getLogger('Claims')
+    logger.setLevel(logging.DEBUG)
+
+    fh = TimedRotatingFileHandler(logfile, when='H')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+
+    logger.addHandler(fh)
+
     main()
+
+

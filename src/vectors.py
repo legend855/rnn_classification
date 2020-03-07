@@ -4,6 +4,7 @@ import os
 import torch
 
 from tqdm import tqdm
+from allennlp.modules.elmo import Elmo, batch_to_ids
 
 
 def load_embeddings(name, outfile, dd):
@@ -29,7 +30,7 @@ def load_embeddings(name, outfile, dd):
             else:
                 pass
 
-        print("\nEmbeddings found for {} words.".format(count), end=' ') # number of words in Claims vocab whose embeddings now exist
+        print("\nEmbeddings found for {} words.".format(count), end=' ') # number of words in vocab with existing embeddings
         print("{} words do not have embeddings.\n\n".format(len(vocab) - count))
         pickle.dump(word_vec_dict, out)
 
@@ -105,6 +106,16 @@ def match_embeddings(idx2w, w2vec_em, dim):
     embeddings = np.stack(embeddings)
     return embeddings
 '''
+
+
+def elmoEmbeddings(dataset):
+    options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
+    weight_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5"
+
+    elmo = Elmo(options_file, weight_file, 2, dropout=0.5)
+ 
+    character_ids = batch_to_ids(dataset.sc["complain"])
+    return elmo(character_ids)
 
 
 if __name__ == '__main__':

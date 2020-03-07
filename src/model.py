@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils import get_seq_lengths, variable
 from torch.autograd import Variable
-from vectors import get_embs
+from vectors import get_embs, elmoEmbeddings
 
 
 class RNN(nn.Module):
@@ -20,6 +20,7 @@ class RNN(nn.Module):
         # layers
         # self.emb = nn.Embedding(self.vocab_size, self.embedding_dim)
         self.emb = nn.Embedding.from_pretrained(get_embs(dataset), freeze=True)
+        #self.emb = elmoEmbeddings(dataset)
         # self.rnn = nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True)
         self.rnn = nn.GRU(self.embedding_dim, self.hidden_size, batch_first=True)
         self.dropout = nn.Dropout(p=self.drop)

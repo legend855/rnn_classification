@@ -68,8 +68,8 @@ class ClaimsDataset(torch.utils.data.Dataset):
         df = self.load_data()
         self.sc = self.tokenize_data(df)
 
-        self.max_len_t = 20 #self.sc['title'].apply(lambda row: len(row)).max()
-        self.max_len_c = 300    #self.sc['complain'].apply(lambda row: len(row)).max()
+        self.max_len_t = self.sc['title'].apply(lambda row: len(row)).max()  # 20
+        self.max_len_c = self.sc['complain'].apply(lambda row: len(row)).max()  # 300
 
         self.make_vocab()
         self.nb_sentences = len(self.sc)
