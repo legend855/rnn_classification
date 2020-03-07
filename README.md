@@ -1,8 +1,8 @@
-# Claims classification with LSTM and GRU 
+## Sentiment classification
+ Classification on a dataset containing claims made to Bank of America,
+with human annotations.
 
-Implementation of text classification with a vanilla RNN, an LSTM and GRU. 
+The classifiers tried are a vanilla RNN and a GRU, with a linear layer,
+and softmax, The loss is a negative log likelihood.
 
-### RNN
-Implementations in model.py  
-
-GRU implementation is a wip. Stay tuned
+See src/model.py
